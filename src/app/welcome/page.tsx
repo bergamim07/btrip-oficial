@@ -7,17 +7,93 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 
 export default function WelcomePage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
-    // Simular login/cadastro
-    setTimeout(() => {
-      window.location.href = "/"
-    }, 1500)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) throw error
+
+      if (data.user) {
+        router.push("/dashboard")
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao fazer login")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const name = formData.get("name") as string
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const confirmPassword = formData.get("confirm-password") as string
+
+    if (password !== confirmPassword) {
+      setError("As senhas não coincidem")
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      })
+
+      if (error) throw error
+
+      if (data.user) {
+        // Criar perfil do usuário
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: data.user.id,
+            full_name: name,
+            username: email.split("@")[0],
+          })
+
+        if (profileError) {
+          console.error("Erro ao criar perfil:", profileError)
+        }
+
+        // Redirecionar para dashboard
+        router.push("/dashboard")
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar conta")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const features = [
@@ -106,6 +182,12 @@ export default function WelcomePage() {
             </p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 font-inter">{error}</p>
+            </div>
+          )}
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-[#E5E7EB]">
               <TabsTrigger 
@@ -124,11 +206,12 @@ export default function WelcomePage() {
 
             {/* Login Form */}
             <TabsContent value="login">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email" className="font-inter">E-mail</Label>
                   <Input
                     id="login-email"
+                    name="email"
                     type="email"
                     placeholder="seu@email.com"
                     required
@@ -139,6 +222,7 @@ export default function WelcomePage() {
                   <Label htmlFor="login-password" className="font-inter">Senha</Label>
                   <Input
                     id="login-password"
+                    name="password"
                     type="password"
                     placeholder="••••••••"
                     required
@@ -167,11 +251,12 @@ export default function WelcomePage() {
 
             {/* Signup Form */}
             <TabsContent value="signup">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name" className="font-inter">Nome completo</Label>
                   <Input
                     id="signup-name"
+                    name="name"
                     type="text"
                     placeholder="Seu nome"
                     required
@@ -182,6 +267,7 @@ export default function WelcomePage() {
                   <Label htmlFor="signup-email" className="font-inter">E-mail</Label>
                   <Input
                     id="signup-email"
+                    name="email"
                     type="email"
                     placeholder="seu@email.com"
                     required
@@ -192,9 +278,11 @@ export default function WelcomePage() {
                   <Label htmlFor="signup-password" className="font-inter">Senha</Label>
                   <Input
                     id="signup-password"
+                    name="password"
                     type="password"
                     placeholder="••••••••"
                     required
+                    minLength={6}
                     className="border-[#E5E7EB] focus:border-[#005CFF] h-12"
                   />
                 </div>
@@ -202,9 +290,11 @@ export default function WelcomePage() {
                   <Label htmlFor="signup-confirm" className="font-inter">Confirmar senha</Label>
                   <Input
                     id="signup-confirm"
+                    name="confirm-password"
                     type="password"
                     placeholder="••••••••"
                     required
+                    minLength={6}
                     className="border-[#E5E7EB] focus:border-[#005CFF] h-12"
                   />
                 </div>
