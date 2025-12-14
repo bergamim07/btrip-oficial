@@ -73,7 +73,7 @@ export default function WelcomePage() {
       if (error) throw error
 
       if (data.user) {
-        // Criar perfil do usuário
+        // Criar perfil do usuário - REMOVIDO campo email que não existe na tabela
         const { error: profileError } = await supabase
           .from("profiles")
           .insert({
